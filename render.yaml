@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: tg-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python telegram_agent.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TARGET_CHANNEL
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: TASK_INTERVAL_HOURS
+        value: "2"
