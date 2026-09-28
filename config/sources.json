@@ -1,0 +1,12 @@
+{
+  "telegram_sources": [
+    "https://t.me/s/javohir_webdev",
+    "https://t.me/s/mohirdev",
+    "https://t.me/s/naxalov",
+    "https://t.me/s/aicreatorsuz"
+  ],
+  "target_channel": "@teleposttestuz",
+  "competitors": [],
+  "max_posts_per_source": 5,
+  "lookback_days": 7
+}
