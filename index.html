@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Telegram AI Post</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#0b1020;color:#f5f7fb}
+main{max-width:720px;margin:auto;padding:28px 18px}
+.card{background:#121a2d;border:1px solid #263452;border-radius:22px;padding:22px}
+h1{margin:0 0 8px;font-size:28px}p{color:#aeb9cf;line-height:1.5}
+button{width:100%;border:0;border-radius:14px;padding:15px;font-size:16px;font-weight:700;cursor:pointer;background:#fff;color:#111}
+a{color:#9ec5ff}.status{margin-top:16px;padding:12px;border-radius:12px;background:#0b1222;white-space:pre-wrap}
+small{color:#77839a}
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+<h1>Telegram AI Post</h1>
+<p>4 ta manba tahlil qilinadi, post matni va rasm tayyorlanadi va <b>@teleposttestuz</b> kanaliga yuboriladi.</p>
+<button id="run">Hozir post yaratish</button>
+<div class="status" id="status">Tayyor.</div>
+<p><a href="https://github.com/husananorqulov7431-coder/tg-bot/actions/workflows/telegram-post.yml" target="_blank" rel="noopener">GitHub Actions holatini ko‘rish</a></p>
+<small>Avtomatik jadval: har kuni 21:30 (Asia/Tashkent).</small>
+</div>
+</main>
+<script>
+const workflow="telegram-post.yml";
+const actions="https://github.com/husananorqulov7431-coder/tg-bot/actions/workflows/"+workflow;
+document.getElementById("run").onclick=()=>{
+ const s=document.getElementById("status");
+ s.textContent="Workflow oynasi ochilmoqda...\nGitHub'da Run workflow tugmasini bosing.";
+ window.open(actions,"_blank","noopener");
+};
+</script>
+</body>
+</html>
