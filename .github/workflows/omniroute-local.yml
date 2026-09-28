@@ -1,0 +1,166 @@
+name: OmniRoute Local Access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  omniroute:
+    name: Start OmniRoute + temporary web link
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install OmniRoute
+        run: npm install -g omniroute
+
+      - name: Validate OmniRoute secret
+        env:
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+        run: |
+          test -n "$OMNIROUTE_API_KEY" || {
+            echo "::error::OMNIROUTE_API_KEY secret is missing"
+            exit 1
+          }
+
+      - name: Start OmniRoute
+        env:
+          PORT: "20128"
+          NODE_ENV: "production"
+          NEXT_PUBLIC_BASE_URL: "http://127.0.0.1:20128"
+          REQUIRE_API_KEY: "true"
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+        run: |
+          nohup omniroute --no-open > omniroute.log 2>&1 &
+          echo $! > omniroute.pid
+
+      - name: Wait for OmniRoute
+        env:
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os, sys, time, urllib.request
+          url = "http://127.0.0.1:20128/v1/models"
+          key = os.environ["OMNIROUTE_API_KEY"].strip()
+
+          for attempt in range(60):
+              try:
+                  req = urllib.request.Request(
+                      url,
+                      headers={"Authorization": "Bearer " + key},
+                  )
+                  with urllib.request.urlopen(req, timeout=5) as resp:
+                      print("OmniRoute HTTP:", resp.status)
+                      print(resp.read().decode("utf-8", "replace")[:2000])
+                      if resp.status == 200:
+                          print("OmniRoute is ready.")
+                          sys.exit(0)
+              except Exception as exc:
+                  print(f"Waiting for OmniRoute ({attempt + 1}/60): {exc}")
+              time.sleep(2)
+
+          print("::error::OmniRoute did not become ready.")
+          sys.exit(1)
+          PY
+
+      - name: Install cloudflared
+        run: |
+          curl -L --fail --retry 3             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64             -o /tmp/cloudflared
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared --version
+
+      - name: Start temporary public tunnel
+        run: |
+          nohup /tmp/cloudflared tunnel --url http://127.0.0.1:20128 > cloudflared.log 2>&1 &
+          echo $! > cloudflared.pid
+
+          for i in $(seq 1 60); do
+            URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' cloudflared.log | head -n 1 || true)
+            if [ -n "$URL" ]; then
+              echo "$URL" > omniroute-public-url.txt
+              echo "OMNIROUTE_PUBLIC_URL=$URL" >> "$GITHUB_ENV"
+              echo "Public OmniRoute URL: $URL"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::Cloudflare Quick Tunnel URL was not found."
+          cat cloudflared.log || true
+          exit 1
+
+      - name: Create clickable HTML
+        run: |
+          URL=$(cat omniroute-public-url.txt)
+          cat > omniroute-link.html <<HTML
+          <!doctype html>
+          <html lang="uz">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>OmniRoute Local Access</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 700px; margin: 60px auto; padding: 24px; line-height: 1.6; }
+              a { display:inline-block; padding:14px 20px; border-radius:10px; background:#111; color:#fff; text-decoration:none; }
+              code { word-break:break-all; }
+            </style>
+          </head>
+          <body>
+            <h1>OmniRoute</h1>
+            <p>Vaqtinchalik public link:</p>
+            <p><a href="$URL" target="_blank" rel="noopener">OmniRoute Dashboard'ni ochish</a></p>
+            <p><code>$URL</code></p>
+            <p>API keyni olganingizdan keyin GitHub Actions'dagi workflow'ni Cancel qiling.</p>
+          </body>
+          </html>
+          HTML
+
+      - name: Publish link to Actions Summary
+        run: |
+          URL=$(cat omniroute-public-url.txt)
+          {
+            echo "# OmniRoute Local Access"
+            echo
+            echo "[**OmniRoute Dashboard'ni ochish →**]($URL)"
+            echo
+            echo "Public URL: $URL"
+            echo
+            echo "> API keyni olganingizdan keyin **Cancel workflow** qiling."
+            echo "> `omniroute-link.html` artifact sifatida ham berildi."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload clickable HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: omniroute-link
+          path: omniroute-link.html
+          retention-days: 1
+
+      - name: Keep OmniRoute alive
+        run: |
+          echo "OmniRoute is running."
+          echo "Public URL: $OMNIROUTE_PUBLIC_URL"
+          echo "API keyni olgach workflow'ni Cancel qiling."
+
+          while true; do
+            sleep 300
+            echo "Still running: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          done
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "===== OmniRoute log ====="
+          test -f omniroute.log && tail -n 200 omniroute.log || true
+          echo "===== Cloudflare log ====="
+          test -f cloudflared.log && tail -n 100 cloudflared.log || true
