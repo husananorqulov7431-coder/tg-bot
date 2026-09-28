@@ -2,6 +2,8 @@ name: Telegram Auto Post
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
   schedule:
     - cron: "30 16 * * *" # 21:30 Asia/Tashkent (UTC+5)
 
@@ -18,9 +20,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Verify dependencies
+        run: python -c "import bs4, requests; print('Dependencies OK')"
 
       - name: Run publisher
         env:
