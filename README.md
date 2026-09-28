@@ -1,22 +1,34 @@
-# Telegram Auto Post
+# Telegram AI Content Agent
 
-Daily Telegram publisher for @teleposttestuz.
+GitHub Actions asosidagi AI/IT Telegram kontent agenti.
 
-## Schedule
-21:30 Asia/Tashkent = 16:30 UTC.
+## Pipeline
 
-## Sources
-- https://t.me/javohir_webdev
-- https://t.me/mohirdev
-- https://t.me/naxalov
-- https://t.me/aicreatorsuz
+1. Ochiq Telegram manbalaridan oxirgi postlarni yig'adi.
+2. OmniRoute orqali AI tahlil qiladi.
+3. Uzbek Latin formatida original post yaratadi.
+4. Quality gate orqali `PUBLISH` yoki `REJECT` qarorini oladi.
+5. `PUBLISH` bo'lsa Telegram kanalga yuboradi.
 
-## Required GitHub Secret
-Create repository secret:
+## Asosiy fayllar
 
-TELEGRAM_BOT_TOKEN
+- `bot.py` — source collection + Telegram publishing
+- `ai_engine.py` — OmniRoute API client, JSON parsing va transient retry
+- `config/sources.json` — manbalar va lookback sozlamalari
+- `config/style_guide.md` — brand voice
+- `prompts/content_system.md` — AI system prompt
+- `.github/workflows/telegram-post.yml` — asosiy publisher
+- `.github/workflows/omniroute-local.yml` — OmniRoute'ni qo'lda vaqtincha ochish uchun test workflow
+- `index.html` + `.github/workflows/pages.yml` — GitHub Pages mini UI
 
-The token must never be committed to the repository.
+## GitHub Secrets
 
-## Current status
-The GitHub Actions bridge is ready. The current version collects recent public Telegram posts and sends a test-formatted digest. An AI generation layer and image generation layer require an external model/API or another connected execution service; a ChatGPT subscription itself does not expose its subscription access as an OpenAI API key for GitHub Actions.
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_TARGET`
+- `OMNIROUTE_API_KEY`
+
+## Muhim
+
+GitHub-hosted runner har ishga tushganda yangi muhit yaratadi. OmniRoute provider ulanishlari SQLite/data papkasida saqlanadi; faqat Endpoint API keyni secretga qo'yish provider OAuth holatini yangi runnerga ko'chirmaydi. Shuning uchun Antigravity kabi OAuth provider uchun alohida persistent OmniRoute instance yoki provider credential/data bootstrap kerak.
+
+Legacy kodlar `archive/legacy/` ichiga ko'chirilgan va asosiy pipeline'dan chiqarilgan.
