@@ -16,27 +16,73 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install OmniRoute
+        run: npm install -g omniroute
+
+      - name: Start OmniRoute
+        env:
+          PORT: "20128"
+          NODE_ENV: "production"
+          NEXT_PUBLIC_BASE_URL: "http://127.0.0.1:20128"
+          REQUIRE_API_KEY: "true"
+        run: nohup omniroute --no-open > omniroute.log 2>&1 &
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install dependencies
+
+      - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
-      - name: Validate GitHub secrets
+
+      - name: Validate OmniRoute secret
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_TARGET: ${{ secrets.TELEGRAM_TARGET }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+        run: test -n "$OMNIROUTE_API_KEY" || { echo "::error::OMNIROUTE_API_KEY is missing"; exit 1; }
+
+      - name: Wait for OmniRoute
+        env:
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
         run: |
-          test -n "$TELEGRAM_BOT_TOKEN" || { echo "::error::TELEGRAM_BOT_TOKEN is missing"; exit 1; }
-          test -n "$TELEGRAM_TARGET" || { echo "::error::TELEGRAM_TARGET is missing"; exit 1; }
-          test -n "$OPENROUTER_API_KEY" || { echo "::error::OPENROUTER_API_KEY is missing"; exit 1; }
-          echo "Required secrets are present."
+          python - <<PY
+          import os, sys, time, urllib.request
+          url = "http://127.0.0.1:20128/v1/models"
+          key = os.environ["OMNIROUTE_API_KEY"].strip()
+          last = None
+          for _ in range(40):
+              try:
+                  req = urllib.request.Request(url, headers={"Authorization": "Bearer " + key})
+                  with urllib.request.urlopen(req, timeout=5) as resp:
+                      body = resp.read().decode("utf-8", "replace")
+                      print("OmniRoute models HTTP:", resp.status)
+                      print(body[:2000])
+                      if resp.status == 200:
+                          sys.exit(0)
+              except Exception as exc:
+                  last = exc
+              time.sleep(2)
+          print("::error::OmniRoute did not become ready")
+          print("Last error:", last)
+          sys.exit(1)
+          PY
+
       - name: Run AI content agent
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_TARGET: ${{ secrets.TELEGRAM_TARGET }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENROUTER_MODEL: openai/gpt-oss-20b:free
+          OMNIROUTE_API_KEY: ${{ secrets.OMNIROUTE_API_KEY }}
+          OMNIROUTE_BASE_URL: "http://127.0.0.1:20128/v1"
+          OMNIROUTE_MODEL: "auto"
         run: python bot.py
+
+      - name: Show OmniRoute log on failure
+        if: failure()
+        run: test -f omniroute.log && tail -n 120 omniroute.log || true
