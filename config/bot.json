@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "free_text_is_task": true,
+  "default_task_status": "queued",
+  "telegram_parse_mode": "HTML"
+}
