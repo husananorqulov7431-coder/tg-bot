@@ -81,14 +81,31 @@ def generate(items):
     print("OmniRoute base URL:", base_url)
     print("OmniRoute model:", model)
     print("OmniRoute request: starting")
-    try:
-        response = requests.post(endpoint, headers=headers, json=payload, timeout=120)
-    except requests.RequestException as exc:
-        raise RuntimeError("OmniRoute network error: " + str(exc)) from exc
+    response = None
+    last_error = None
 
-    print("OmniRoute HTTP:", response.status_code)
-    if not response.ok:
+    # OmniRoute may return 502 when a routed provider temporarily fails.
+    # Retry the same request before giving up.
+    for attempt in range(3):
+        try:
+            response = requests.post(endpoint, headers=headers, json=payload, timeout=120)
+        except requests.RequestException as exc:
+            last_error = exc
+            print(f"OmniRoute network error (attempt {attempt + 1}/3):", exc)
+            continue
+
+        print(f"OmniRoute HTTP (attempt {attempt + 1}/3):", response.status_code)
+        if response.ok:
+            break
+
         print("OmniRoute error:", response.text[:4000])
+        if response.status_code not in (429, 500, 502, 503, 504):
+            raise RuntimeError("OmniRoute HTTP " + str(response.status_code))
+
+    if response is None:
+        raise RuntimeError("OmniRoute network error: " + str(last_error))
+
+    if not response.ok:
         raise RuntimeError("OmniRoute HTTP " + str(response.status_code))
 
     try:
